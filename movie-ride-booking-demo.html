@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marquee &amp; Wheels — Movie + Ride Booking</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Sora:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{
+  --bg:#0B0B14;
+  --surface:#15151f;
+  --surface2:#1c1c29;
+  --text:#F2F0EA;
+  --text-dim:#9C99AE;
+  --marquee:#E8B54D;
+  --marquee-dim:#8a6b2c;
+  --stub:#C1443C;
+  --ride:#3FA9A0;
+  --line:rgba(242,240,234,0.14);
+  --good:#5EBE7B;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-height:100%;}
+body{padding-bottom:60px;}
+h1,h2,h3,.display{font-family:'Bebas Neue',sans-serif;letter-spacing:0.03em;font-weight:400;}
+.mono{font-family:'IBM Plex Mono',monospace;}
+#app{max-width:860px;margin:0 auto;padding:0 20px;}
+::selection{background:var(--marquee);color:#0B0B14;}
+button{font-family:inherit;cursor:pointer;border:none;}
+a{color:inherit;}
+button:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--marquee);outline-offset:2px;}
+
+/* ---- top bar ---- */
+.topbar{position:sticky;top:0;z-index:20;background:rgba(11,11,20,0.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);}
+.topbar-inner{max-width:860px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;}
+.brand{display:flex;align-items:center;gap:10px;}
+.brand-mark{width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,var(--marquee),var(--stub));display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue';font-size:17px;color:#0B0B14;}
+.brand-name{font-family:'Bebas Neue';font-size:22px;letter-spacing:0.04em;}
+.brand-name span{color:var(--marquee);}
+.mode-switch{display:flex;gap:6px;background:var(--surface2);padding:4px;border-radius:8px;}
+.mode-switch button{padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;color:var(--text-dim);background:transparent;}
+.mode-switch button.active{background:var(--marquee);color:#0B0B14;}
+
+/* ---- filmstrip progress ---- */
+.filmstrip{margin:22px 0 26px;}
+.filmstrip-track{display:flex;align-items:center;gap:0;}
+.fs-step{flex:1;text-align:center;position:relative;}
+.fs-dot{width:11px;height:11px;border-radius:50%;background:var(--surface2);border:2px solid var(--line);margin:0 auto 8px;position:relative;z-index:2;transition:.25s;}
+.fs-step.done .fs-dot{background:var(--marquee);border-color:var(--marquee);}
+.fs-step.now .fs-dot{background:var(--ride);border-color:var(--ride);box-shadow:0 0 0 4px rgba(63,169,160,0.25);}
+.fs-line{position:absolute;top:5px;left:-50%;width:100%;height:2px;background:var(--line);z-index:1;}
+.fs-step:first-child .fs-line{display:none;}
+.fs-step.done .fs-line{background:var(--marquee);}
+.fs-label{font-size:10.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.06em;}
+.fs-step.now .fs-label{color:var(--text);}
+
+/* ---- generic ---- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px;}
+.eyebrow{font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--marquee);font-weight:600;margin-bottom:6px;}
+.page-title{font-size:38px;margin-bottom:4px;}
+.page-sub{color:var(--text-dim);font-size:14.5px;margin-bottom:22px;}
+.btn{padding:13px 22px;border-radius:9px;font-weight:700;font-size:14.5px;transition:.15s;}
+.btn-primary{background:var(--marquee);color:#0B0B14;}
+.btn-primary:hover{background:#f2c568;}
+.btn-primary:disabled{background:var(--surface2);color:var(--text-dim);cursor:not-allowed;}
+.btn-ghost{background:transparent;border:1px solid var(--line);color:var(--text);}
+.btn-ghost:hover{border-color:var(--marquee);}
+.btn-ride{background:var(--ride);color:#06201d;}
+.btn-ride:hover{background:#57c1b7;}
+.btn-block{width:100%;}
+.row{display:flex;gap:12px;}
+.stack{display:flex;flex-direction:column;gap:14px;}
+.field label{display:block;font-size:12.5px;color:var(--text-dim);margin-bottom:6px;}
+.field input,.field select{width:100%;background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:11px 12px;color:var(--text);font-family:inherit;font-size:14px;}
+.field input:focus,.field select:focus{border-color:var(--marquee);outline:none;}
+.pill{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--surface2);color:var(--text-dim);}
+.divider-dash{border-top:2px dashed var(--line);margin:18px 0;position:relative;}
+.divider-dash::before,.divider-dash::after{content:'';position:absolute;top:-11px;width:22px;height:22px;border-radius:50%;background:var(--bg);}
+.divider-dash::before{left:-33px;}
+.divider-dash::after{right:-33px;}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--surface2);border:1px solid var(--marquee);padding:12px 20px;border-radius:9px;font-size:13.5px;z-index:100;box-shadow:0 8px 24px rgba(0,0,0,0.4);}
+
+/* ---- login ---- */
+.login-wrap{min-height:80vh;display:flex;align-items:center;justify-content:center;}
+.login-card{max-width:380px;width:100%;text-align:center;}
+.login-title{font-size:52px;line-height:0.95;}
+.login-title .accent{color:var(--marquee);}
+.login-title .accent2{color:var(--ride);}
+
+/* ---- movies ---- */
+.movie-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.movie-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;text-align:left;transition:.2s;}
+.movie-card:hover{border-color:var(--marquee);transform:translateY(-2px);}
+.poster{height:150px;display:flex;align-items:center;justify-content:center;position:relative;}
+.poster .glyph{font-family:'Bebas Neue';font-size:46px;color:rgba(255,255,255,0.85);}
+.poster .rating-badge{position:absolute;top:10px;right:10px;background:rgba(11,11,20,0.75);padding:3px 9px;border-radius:20px;font-size:12px;font-weight:700;}
+.movie-body{padding:14px 14px 16px;}
+.movie-body h3{font-size:20px;margin-bottom:4px;}
+.movie-meta{color:var(--text-dim);font-size:12px;margin-bottom:8px;}
+.genre-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;}
+.movie-desc{font-size:12.5px;color:var(--text-dim);line-height:1.4;}
+.ai-pick{background:linear-gradient(90deg,rgba(232,181,77,0.15),transparent);border:1px solid var(--marquee-dim);border-radius:10px;padding:10px 14px;font-size:12.5px;margin-bottom:16px;display:flex;gap:8px;align-items:center;}
+
+/* ---- seats ---- */
+.seat-legend{display:flex;gap:16px;font-size:12px;color:var(--text-dim);margin:14px 0;}
+.legend-swatch{width:12px;height:12px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:-1px;}
+.screen-curve{height:8px;background:linear-gradient(90deg,transparent,var(--marquee-dim),transparent);border-radius:50%;margin:8px auto 22px;width:80%;}
+.screen-label{text-align:center;font-size:10.5px;letter-spacing:0.2em;color:var(--text-dim);margin-bottom:4px;text-transform:uppercase;}
+.seat-map{display:grid;grid-template-columns:repeat(10,1fr);gap:6px;max-width:420px;margin:0 auto;}
+.seat{aspect-ratio:1;border-radius:5px 5px 8px 8px;background:var(--surface2);border:1px solid var(--line);font-size:9px;display:flex;align-items:center;justify-content:center;color:var(--text-dim);}
+.seat.booked{background:#2a1a1a;color:#6b4444;cursor:not-allowed;}
+.seat.avail{cursor:pointer;}
+.seat.avail:hover{border-color:var(--marquee);}
+.seat.selected{background:var(--marquee);color:#0B0B14;font-weight:700;border-color:var(--marquee);}
+.row-label{font-size:10px;color:var(--text-dim);display:flex;align-items:center;justify-content:center;}
+.summary-line{display:flex;justify-content:space-between;font-size:14px;padding:7px 0;color:var(--text-dim);}
+.summary-line b{color:var(--text);font-weight:600;}
+.summary-total{display:flex;justify-content:space-between;font-size:19px;font-weight:700;padding-top:10px;margin-top:6px;border-top:1px solid var(--line);}
+
+/* ---- choice ---- */
+.choice-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px;}
+.choice-btn{background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:22px 16px;text-align:center;transition:.15s;}
+.choice-btn:hover{border-color:var(--ride);transform:translateY(-2px);}
+.choice-btn .cg{font-size:30px;display:block;margin-bottom:8px;}
+.choice-btn .ct{font-weight:700;font-size:15px;}
+.choice-btn .cs{font-size:12px;color:var(--text-dim);margin-top:2px;}
+.pax-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0;}
+.pax-btn{background:var(--surface);border:1.5px solid var(--line);border-radius:10px;padding:14px 6px;text-align:center;font-weight:700;}
+.pax-btn:hover{border-color:var(--ride);}
+.pax-btn.active{background:var(--ride);color:#06201d;border-color:var(--ride);}
+
+/* ---- ride options ---- */
+.ride-card{background:var(--surface);border:1.5px solid var(--line);border-radius:13px;padding:16px;display:flex;gap:14px;align-items:center;margin-bottom:12px;transition:.15s;}
+.ride-card.selected{border-color:var(--ride);background:rgba(63,169,160,0.08);}
+.ride-icon{width:52px;height:52px;border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;}
+.ride-info{flex:1;}
+.ride-info .rt{font-weight:700;font-size:15.5px;}
+.ride-info .rd{font-size:12px;color:var(--text-dim);margin-top:2px;}
+.ride-price{text-align:right;}
+.ride-price .rp{font-size:19px;font-weight:800;color:var(--marquee);}
+.ride-price .rc{font-size:11px;color:var(--text-dim);}
+.recommended-tag{display:inline-block;background:var(--ride);color:#06201d;font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px;margin-bottom:8px;letter-spacing:0.04em;}
+
+/* ---- map ---- */
+.map-box{height:190px;border-radius:12px;background:
+  radial-gradient(circle at 30% 30%, rgba(63,169,160,0.18), transparent 40%),
+  radial-gradient(circle at 70% 70%, rgba(232,181,77,0.14), transparent 40%),
+  repeating-linear-gradient(0deg, var(--surface2) 0 1px, transparent 1px 28px),
+  repeating-linear-gradient(90deg, var(--surface2) 0 1px, transparent 1px 28px),
+  var(--bg);
+  position:relative;overflow:hidden;margin-bottom:16px;border:1px solid var(--line);}
+.map-pin{position:absolute;left:50%;top:48%;transform:translate(-50%,-100%);font-size:30px;filter:drop-shadow(0 4px 6px rgba(0,0,0,0.5));}
+
+/* ---- payment ---- */
+.pay-methods{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0 18px;}
+.pay-methods button{padding:13px 10px;border-radius:9px;border:1.5px solid var(--line);background:var(--surface2);color:var(--text-dim);font-weight:600;font-size:13px;}
+.pay-methods button.active{border-color:var(--marquee);color:var(--text);background:rgba(232,181,77,0.1);}
+
+/* ---- confirmation ---- */
+.ticket{background:linear-gradient(160deg,var(--surface),var(--surface2));border:1px solid var(--line);border-radius:16px;overflow:hidden;}
+.ticket-head{padding:20px 22px;background:linear-gradient(90deg,rgba(232,181,77,0.15),rgba(63,169,160,0.1));display:flex;justify-content:space-between;align-items:center;}
+.ticket-body{padding:22px;}
+.qr-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;margin:8px 0 18px;}
+.qr-wrap canvas,.qr-wrap img{border-radius:10px;background:#fff;padding:10px;}
+.booking-id{font-size:13px;color:var(--text-dim);}
+.booking-id b{color:var(--marquee);}
+.action-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px;}
+
+/* ---- tracking ---- */
+.driver-row{display:flex;gap:14px;align-items:center;margin-bottom:18px;}
+.driver-avatar{width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--ride),var(--marquee));display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;color:#0B0B14;}
+.status-track{display:flex;justify-content:space-between;position:relative;margin:26px 0 6px;}
+.status-track::before{content:'';position:absolute;top:9px;left:5%;right:5%;height:2px;background:var(--line);}
+.st-item{text-align:center;flex:1;position:relative;z-index:2;}
+.st-dot{width:18px;height:18px;border-radius:50%;background:var(--surface2);border:2px solid var(--line);margin:0 auto 6px;}
+.st-item.on .st-dot{background:var(--ride);border-color:var(--ride);}
+.st-item.on .st-label{color:var(--text);}
+.st-label{font-size:10.5px;color:var(--text-dim);}
+
+/* ---- feedback ---- */
+.stars{display:flex;gap:6px;font-size:30px;margin:6px 0 4px;}
+.stars span{cursor:pointer;color:var(--line);transition:.1s;}
+.stars span.on{color:var(--marquee);}
+textarea{width:100%;background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:11px 12px;color:var(--text);font-family:inherit;font-size:14px;resize:vertical;min-height:70px;}
+
+/* ---- admin ---- */
+.admin-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px;}
+.admin-tabs button{padding:8px 13px;border-radius:8px;background:var(--surface2);color:var(--text-dim);font-size:12.5px;font-weight:600;}
+.admin-tabs button.active{background:var(--marquee);color:#0B0B14;}
+.stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;}
+.stat-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;}
+.stat-card .sv{font-family:'Bebas Neue';font-size:30px;color:var(--marquee);}
+.stat-card .sl{font-size:11.5px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+table th{text-align:left;color:var(--text-dim);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;padding:9px 10px;border-bottom:1px solid var(--line);}
+table td{padding:10px;border-bottom:1px solid var(--line);}
+.bar-chart{display:flex;align-items:flex-end;gap:10px;height:140px;margin:10px 0;}
+.bar{flex:1;background:linear-gradient(180deg,var(--marquee),var(--stub));border-radius:6px 6px 2px 2px;position:relative;}
+.bar span{position:absolute;bottom:-20px;left:0;right:0;text-align:center;font-size:10.5px;color:var(--text-dim);}
+
+@media(max-width:600px){
+  .movie-grid{grid-template-columns:1fr;}
+  .choice-grid{grid-template-columns:1fr;}
+  .pax-grid{grid-template-columns:repeat(3,1fr);}
+  .stat-grid{grid-template-columns:1fr 1fr;}
+  .seat-map{grid-template-columns:repeat(8,1fr);}
+  .fs-label{display:none;}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="brand-mark">M</div>
+      <div class="brand-name">Marquee<span>&amp;</span>Wheels</div>
+    </div>
+    <div class="mode-switch">
+      <button id="modeUser" class="active" onclick="setAdminMode(false)">Book</button>
+      <button id="modeAdmin" onclick="setAdminMode(true)">Admin</button>
+    </div>
+  </div>
+</div>
+
+<div id="app"></div>
+
+<script>
+/* ============ MOCK DATA ============ */
+const MOVIES = [
+  {id:1, title:"Nightfall Protocol", genre:["Action","Thriller"], rating:4.6, duration:132, price:280,
+   grad:"linear-gradient(135deg,#C1443C,#5a1712)", glyph:"NP",
+   desc:"A disavowed agent has one night to stop a blackout that will hide a coup."},
+  {id:2, title:"Paper Moons", genre:["Drama","Romance"], rating:4.3, duration:118, price:240,
+   grad:"linear-gradient(135deg,#E8B54D,#7a5417)", glyph:"PM",
+   desc:"Two letter-writers meet after a decade of correspondence they never signed."},
+  {id:3, title:"The Long Orbit", genre:["Sci-Fi"], rating:4.8, duration:151, price:320,
+   grad:"linear-gradient(135deg,#3FA9A0,#123f3a)", glyph:"LO",
+   desc:"A generation ship's engineer discovers the return course was erased."},
+  {id:4, title:"Ghungroo", genre:["Musical","Drama"], rating:4.5, duration:145, price:260,
+   grad:"linear-gradient(135deg,#9B5DE5,#3a1a5c)", glyph:"GH",
+   desc:"A classical dancer rebuilds her troupe after the theatre that made her closes."},
+  {id:5, title:"Hollow Circuit", genre:["Horror"], rating:4.1, duration:104, price:220,
+   grad:"linear-gradient(135deg,#2b2b2b,#0a0a0a)", glyph:"HC",
+   desc:"A smart-home beta test starts learning the family faster than it should."},
+  {id:6, title:"Chai, Interrupted", genre:["Comedy"], rating:4.4, duration:112, price:230,
+   grad:"linear-gradient(135deg,#5EBE7B,#1f4a2c)", glyph:"CI",
+   desc:"Three roommates try to stop their landlord's wedding to save their lease."},
+];
+const SHOWTIMES = ["10:30 AM","1:15 PM","4:45 PM","7:30 PM","10:15 PM"];
+const DATES = (()=>{
+  const out=[]; const today=new Date();
+  for(let i=0;i<5;i++){ const d=new Date(today); d.setDate(today.getDate()+i);
+    out.push({key:d.toISOString().slice(0,10), label:d.toLocaleDateString('en-US',{weekday:'short',day:'numeric',month:'short'})}); }
+  return out;
+})();
+const CINEMA = {name:"Marquee Grand — Ahmedabad Central", address:"2nd Floor, Central Mall, C.G. Road, Ahmedabad, Gujarat", lat:23.0225, lng:72.5714};
+
+const RIDE_TYPES = {
+  bike: {label:"Bike Ride", icon:"🏍️", base:35, perKm:6},
+  auto: {label:"Auto Rickshaw", icon:"🛺", base:45, perKm:9},
+  sedan:{label:"Sedan Cab", icon:"🚗", base:90, perKm:13},
+  suv:  {label:"SUV Cab", icon:"🚙", base:140, perKm:17},
+  multi:{label:"Multiple SUVs / Mini Van", icon:"🚐", base:220, perKm:22},
+};
+function rideTypeForPax(n){
+  if(n===1) return 'bike';
+  if(n===2||n===3) return 'auto';
+  if(n===4) return 'sedan';
+  if(n===5||n===6) return 'suv';
+  return 'multi';
+}
+const DRIVER_NAMES = ["Rakesh P.","Meera S.","Irfan K.","Priya D.","Sanjay M.","Aisha F.","Vikram T.","Neha R."];
+
+/* ============ STATE ============ */
+let state = {
+  screen:'login',
+  adminMode:false, adminTab:'dashboard',
+  user:null,
+  selectedMovie:null, date:DATES[0].key, showtime:SHOWTIMES[1], seatQty:2,
+  selectedSeats:[], bookedSeats:new Set(),
+  needRide:null, ownVehicle:null, passengers:2,
+  rideOptions:[], selectedRide:null,
+  paymentMethod:'UPI',
+  bookingId:null, qrPayload:null,
+  rideStatus:0,
+  movieFeedback:{stars:0, review:'', suggestions:''},
+  rideFeedback:{stars:0, behaviour:0, cleanliness:0, comfort:0, suggestions:''},
+  toast:null,
+};
+
+// randomly pre-book some seats once per movie/show combo
+function ensureBookedSeats(){
+  if(state.bookedSeats.size) return;
+  const s = new Set();
+  while(s.size < 14){ s.add(Math.floor(Math.random()*80)); }
+  state.bookedSeats = s;
+}
+
+function showToast(msg){
+  state.toast = msg;
+  render();
+  setTimeout(()=>{ state.toast=null; const t=document.querySelector('.toast'); if(t) t.remove(); }, 2600);
+}
+
+/* ============ NAV HELPERS ============ */
+function go(screen){ state.screen = screen; window.scrollTo({top:0,behavior:'smooth'}); render(); }
+function setAdminMode(on){ state.adminMode = on; document.getElementById('modeUser').classList.toggle('active',!on); document.getElementById('modeAdmin').classList.toggle('active',on);
+  state.screen = on ? 'admin' : (state.user ? 'movies':'login'); render(); }
+
+/* ============ FILM STRIP PROGRESS ============ */
+const FLOW = ['movies','seats','transport','payment','confirmation','feedback'];
+function filmstrip(){
+  if(!FLOW.includes(state.screen)) return '';
+  const labels = {movies:'Movie', seats:'Seats', transport:'Ride', payment:'Payment', confirmation:'Ticket', feedback:'Feedback'};
+  const idx = FLOW.indexOf(state.screen);
+  return `<div class="filmstrip"><div class="filmstrip-track">${FLOW.map((f,i)=>`
+    <div class="fs-step ${i<idx?'done':''} ${i===idx?'now':''}">
+      <div class="fs-line"></div>
+      <div class="fs-dot"></div>
+      <div class="fs-label">${labels[f]}</div>
+    </div>`).join('')}</div></div>`;
+}
+
+/* ============ SCREENS ============ */
+function screenLogin(){
+  return `
+  <div class="login-wrap">
+    <div class="card login-card">
+      <div class="login-title">Book the <span class="accent">film</span>.<br>Book the <span class="accent2">ride</span>.</div>
+      <p class="page-sub" style="margin-top:10px;">One ticket. One QR. Cinema and ride sorted before you leave the house.</p>
+      <div class="stack" style="text-align:left;margin-top:18px;">
+        <div class="field"><label>Full name</label><input id="loginName" placeholder="e.g. Aditi Shah" value="Aditi Shah"></div>
+        <div class="field"><label>Email</label><input id="loginEmail" type="email" placeholder="you@example.com" value="aditi.shah@example.com"></div>
+        <button class="btn btn-primary btn-block" onclick="doLogin()">Log in &amp; continue</button>
+        <p style="text-align:center;font-size:11.5px;color:var(--text-dim);">Demo auth — no password needed. In production this posts to <span class="mono">/api/auth/login</span> and stores a JWT.</p>
+      </div>
+    </div>
+  </div>`;
+}
+function doLogin(){
+  const name = document.getElementById('loginName').value.trim() || 'Guest User';
+  const email = document.getElementById('loginEmail').value.trim() || 'guest@example.com';
+  state.user = {name, email};
+  go('movies');
+}
+
+function screenMovies(){
+  return `
+  <div class="eyebrow">Step 1 of 6</div>
+  <h1 class="page-title">Now Showing</h1>
+  <p class="page-sub">Welcome back, ${state.user.name.split(' ')[0]}. Pick tonight's film.</p>
+  <div class="ai-pick">🎯 <b>AI pick for you:</b>&nbsp; Based on your last watch (Sci-Fi, 4★+), we'd start with <b>The Long Orbit</b>.</div>
+  <div class="movie-grid">
+    ${MOVIES.map(m=>`
+      <button class="movie-card" onclick="selectMovie(${m.id})" style="text-align:left;">
+        <div class="poster" style="background:${m.grad};">
+          <span class="glyph">${m.glyph}</span>
+          <span class="rating-badge">★ ${m.rating}</span>
+        </div>
+        <div class="movie-body">
+          <h3>${m.title}</h3>
+          <div class="movie-meta">${m.duration} min · ₹${m.price} onwards</div>
+          <div class="genre-tags">${m.genre.map(g=>`<span class="pill">${g}</span>`).join('')}</div>
+          <div class="movie-desc">${m.desc}</div>
+        </div>
+      </button>`).join('')}
+  </div>`;
+}
+function selectMovie(id){
+  state.selectedMovie = MOVIES.find(m=>m.id===id);
+  state.bookedSeats = new Set();
+  state.selectedSeats = [];
+  go('seats');
+}
+
+function screenSeats(){
+  ensureBookedSeats();
+  const m = state.selectedMovie;
+  const rows = "ABCDEFGH".split('');
+  let seatHtml='';
+  rows.forEach((r,ri)=>{
+    seatHtml += `<div class="row-label">${r}</div>`;
+    for(let c=0;c<10;c++){
+      const idx = ri*10+c;
+      const booked = state.bookedSeats.has(idx);
+      const selected = state.selectedSeats.includes(idx);
+      const cls = booked?'booked':(selected?'selected avail':'avail');
+      seatHtml += `<button class="seat ${cls}" ${booked?'disabled':''} onclick="toggleSeat(${idx})">${r}${c+1}</button>`;
+    }
+  });
+  const total = state.selectedSeats.length * m.price;
+  return `
+  <div class="eyebrow">Step 2 of 6</div>
+  <h1 class="page-title">${m.title}</h1>
+  <p class="page-sub">${m.duration} min · ${m.genre.join(', ')}</p>
+  <div class="card">
+    <div class="row" style="margin-bottom:16px;">
+      <div class="field" style="flex:1;"><label>Date</label>
+        <select id="dateSel" onchange="state.date=this.value">
+          ${DATES.map(d=>`<option value="${d.key}" ${d.key===state.date?'selected':''}>${d.label}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field" style="flex:1;"><label>Showtime</label>
+        <select id="timeSel" onchange="state.showtime=this.value">
+          ${SHOWTIMES.map(t=>`<option ${t===state.showtime?'selected':''}>${t}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+
+    <div class="screen-label">Choose your seats — screen this way</div>
+    <div class="screen-curve"></div>
+    <div class="seat-map">${seatHtml}</div>
+    <div class="seat-legend" style="justify-content:center;">
+      <span><span class="legend-swatch" style="background:var(--surface2);border:1px solid var(--line);"></span>Available</span>
+      <span><span class="legend-swatch" style="background:var(--marquee);"></span>Selected</span>
+      <span><span class="legend-swatch" style="background:#2a1a1a;"></span>Booked</span>
+    </div>
+
+    <div class="divider-dash"></div>
+    <div class="summary-line"><span>Seats selected</span><b>${state.selectedSeats.length || '—'}</b></div>
+    <div class="summary-line"><span>Price per ticket</span><b>₹${m.price}</b></div>
+    <div class="summary-total"><span>Total</span><span>₹${total}</span></div>
+    <button class="btn btn-primary btn-block" style="margin-top:16px;" ${state.selectedSeats.length?'':'disabled'} onclick="confirmBooking()">
+      Book ${state.selectedSeats.length||''} ticket${state.selectedSeats.length===1?'':'s'}
+    </button>
+  </div>`;
+}
+function toggleSeat(idx){
+  if(state.bookedSeats.has(idx)) return;
+  const i = state.selectedSeats.indexOf(idx);
+  if(i>-1) state.selectedSeats.splice(i,1);
+  else state.selectedSeats.push(idx);
+  render();
+}
+function confirmBooking(){
+  if(!state.selectedSeats.length) return;
+  showToast('Movie tickets booked — let us sort your ride there.');
+  go('transport');
+}
+
+function seatLabel(idx){ const r="ABCDEFGH"[Math.floor(idx/10)]; const c=(idx%10)+1; return r+c; }
+
+function screenTransport(){
+  const m = state.selectedMovie;
+  if(state.needRide===null){
+    return `
+    <div class="eyebrow">Step 3 of 6</div>
+    <h1 class="page-title">Need a ride?</h1>
+    <p class="page-sub">${m.title} · ${state.date} · ${state.showtime} · ${state.selectedSeats.map(seatLabel).join(', ')}</p>
+    <div class="card">
+      <p style="margin-bottom:6px;font-weight:600;">Do you need transportation to the cinema?</p>
+      <p class="page-sub" style="margin-bottom:0;">We'll match you to the right ride, or send you straight to payment.</p>
+      <div class="choice-grid">
+        <button class="choice-btn" onclick="setNeedRide(true)"><span class="cg">🚕</span><span class="ct">Yes, get me a ride</span><span class="cs">We'll recommend the best option</span></button>
+        <button class="choice-btn" onclick="setNeedRide(false)"><span class="cg">🚶</span><span class="ct">No, I'll get there myself</span><span class="cs">Skip straight to payment</span></button>
+      </div>
+    </div>`;
+  }
+  if(state.needRide && state.ownVehicle===null){
+    return `
+    <div class="eyebrow">Step 3 of 6</div>
+    <h1 class="page-title">Your own vehicle?</h1>
+    <p class="page-sub">Quick check before we start recommending rides.</p>
+    <div class="card">
+      <p style="margin-bottom:0;font-weight:600;">Do you have your own bike or car for tonight?</p>
+      <div class="choice-grid">
+        <button class="choice-btn" onclick="setOwnVehicle(true)"><span class="cg">🚗</span><span class="ct">Yes, I'm driving myself</span><span class="cs">We'll just show you the cinema location</span></button>
+        <button class="choice-btn" onclick="setOwnVehicle(false)"><span class="cg">🙋</span><span class="ct">No, book me a ride</span><span class="cs">Tell us how many are travelling</span></button>
+      </div>
+    </div>`;
+  }
+  if(state.ownVehicle===true){
+    return `
+    <div class="eyebrow">Step 3 of 6</div>
+    <h1 class="page-title">Cinema location</h1>
+    <p class="page-sub">Navigate yourself — your movie ticket is ready to pay for.</p>
+    <div class="card">
+      <div class="map-box"><div class="map-pin">📍</div></div>
+      <h3 style="font-size:19px;margin-bottom:4px;">${CINEMA.name}</h3>
+      <p class="page-sub" style="margin-bottom:16px;">${CINEMA.address}</p>
+      <a class="btn btn-ghost btn-block" style="display:block;text-align:center;" target="_blank"
+         href="https://www.google.com/maps/search/?api=1&query=${CINEMA.lat},${CINEMA.lng}">Open navigation in Google Maps ↗</a>
+      <button class="btn btn-primary btn-block" style="margin-top:12px;" onclick="go('payment')">Continue to payment</button>
+    </div>`;
+  }
+  // ownVehicle === false -> ask passengers
+  if(!state.rideOptions.length){
+    return `
+    <div class="eyebrow">Step 3 of 6</div>
+    <h1 class="page-title">How many travelling?</h1>
+    <p class="page-sub">We'll recommend the right vehicle automatically.</p>
+    <div class="card">
+      <div class="pax-grid">
+        ${[1,2,3,4,5,6,7,8].map(n=>`<button class="pax-btn ${state.passengers===n?'active':''}" onclick="setPax(${n})">${n}${n===8?'+':''}</button>`).join('')}
+      </div>
+      <p class="page-sub" style="margin-bottom:0;">Recommended for ${state.passengers}: <b style="color:var(--ride);">${RIDE_TYPES[rideTypeForPax(state.passengers)].label}</b></p>
+      <button class="btn btn-ride btn-block" style="margin-top:16px;" onclick="generateRides()">Show ride options</button>
+    </div>`;
+  }
+  return screenRideOptions();
+}
+function setNeedRide(v){ state.needRide=v; if(!v) go('payment'); else render(); }
+function setOwnVehicle(v){ state.ownVehicle=v; render(); }
+function setPax(n){ state.passengers=n; render(); }
+
+function generateRides(){
+  const type = rideTypeForPax(state.passengers);
+  const t = RIDE_TYPES[type];
+  const distance = +(2 + Math.random()*6).toFixed(1);
+  const opts = [];
+  for(let i=0;i<3;i++){
+    const surge = [1, 1.12, 0.92][i];
+    const price = Math.round((t.base + t.perKm*distance) * surge);
+    const eta = Math.round(3 + Math.random()*9) + i*2;
+    const travel = Math.round(distance*2.4) + i;
+    opts.push({
+      id:i, type, label:t.label, icon:t.icon,
+      driver: DRIVER_NAMES[Math.floor(Math.random()*DRIVER_NAMES.length)],
+      rating: (4.2+Math.random()*0.7).toFixed(1),
+      eta, travel, distance, price,
+      recommended: i===0,
+    });
+  }
+  state.rideOptions = opts;
+  state.selectedRide = null;
+  render();
+}
+
+function screenRideOptions(){
+  const type = rideTypeForPax(state.passengers);
+  return `
+  <div class="eyebrow">Step 3 of 6</div>
+  <h1 class="page-title">${RIDE_TYPES[type].label}</h1>
+  <p class="page-sub">${state.passengers} passenger${state.passengers===1?'':'s'} · AI-matched to your group size</p>
+  <div class="card">
+    ${state.rideOptions.map(r=>`
+      <div class="ride-card ${state.selectedRide && state.selectedRide.id===r.id?'selected':''}" onclick="pickRide(${r.id})" style="cursor:pointer;">
+        <div class="ride-icon">${r.icon}</div>
+        <div class="ride-info">
+          ${r.recommended?'<div class="recommended-tag">AI RECOMMENDED</div><br>':''}
+          <div class="rt">${r.label} · ${r.driver}</div>
+          <div class="rd">★ ${r.rating} driver &nbsp;·&nbsp; ${r.eta} min away &nbsp;·&nbsp; ${r.travel} min ride &nbsp;·&nbsp; ${r.distance} km</div>
+        </div>
+        <div class="ride-price"><div class="rp">₹${r.price}</div><div class="rc">fare</div></div>
+      </div>`).join('')}
+    <button class="btn btn-ride btn-block" style="margin-top:8px;" ${state.selectedRide?'':'disabled'} onclick="go('payment')">
+      ${state.selectedRide? 'Confirm ride & continue to payment' : 'Select a ride to continue'}
+    </button>
+  </div>`;
+}
+function pickRide(id){ state.selectedRide = state.rideOptions.find(r=>r.id===id); render(); }
+
+function screenPayment(){
+  const m = state.selectedMovie;
+  const ticketTotal = state.selectedSeats.length * m.price;
+  const rideTotal = state.selectedRide ? state.selectedRide.price : 0;
+  const total = ticketTotal + rideTotal;
+  const methods = ['UPI','Credit Card','Debit Card','Net Banking'];
+  return `
+  <div class="eyebrow">Step 4 of 6</div>
+  <h1 class="page-title">Payment</h1>
+  <p class="page-sub">Review your order and pay securely.</p>
+  <div class="card">
+    <h3 style="font-size:16px;margin-bottom:8px;">🎬 Movie</h3>
+    <div class="summary-line"><span>${m.title}</span><b>${state.date}</b></div>
+    <div class="summary-line"><span>Showtime</span><b>${state.showtime}</b></div>
+    <div class="summary-line"><span>Seats</span><b>${state.selectedSeats.map(seatLabel).join(', ')}</b></div>
+    <div class="summary-line"><span>Ticket price</span><b>₹${ticketTotal}</b></div>
+
+    ${state.selectedRide ? `
+    <div class="divider-dash"></div>
+    <h3 style="font-size:16px;margin-bottom:8px;">🚕 Ride</h3>
+    <div class="summary-line"><span>${state.selectedRide.label}</span><b>${state.selectedRide.driver}</b></div>
+    <div class="summary-line"><span>Distance</span><b>${state.selectedRide.distance} km</b></div>
+    <div class="summary-line"><span>Ride fare</span><b>₹${rideTotal}</b></div>` : ''}
+
+    <div class="summary-total"><span>Total amount</span><span>₹${total}</span></div>
+
+    <p style="font-size:12.5px;color:var(--text-dim);margin:16px 0 6px;">Payment method</p>
+    <div class="pay-methods">
+      ${methods.map(mth=>`<button class="${state.paymentMethod===mth?'active':''}" onclick="setMethod('${mth}')">${mth}</button>`).join('')}
+    </div>
+    <button class="btn btn-primary btn-block" onclick="pay()">Pay ₹${total}</button>
+    <p style="text-align:center;font-size:11px;color:var(--text-dim);margin-top:10px;">Demo checkout — no real charge is made.</p>
+  </div>`;
+}
+function setMethod(m){ state.paymentMethod=m; render(); }
+
+function pay(){
+  const m = state.selectedMovie;
+  const bookingId = 'MW-' + Math.random().toString(36).slice(2,6).toUpperCase() + '-' + Date.now().toString().slice(-5);
+  state.bookingId = bookingId;
+  const payload = {
+    bookingId,
+    user:{name:state.user.name, email:state.user.email},
+    movie:{title:m.title, date:state.date, time:state.showtime, seats:state.selectedSeats.map(seatLabel)},
+    ride: state.selectedRide ? {type:state.selectedRide.label, driver:state.selectedRide.driver, price:state.selectedRide.price} : null,
+    paymentStatus:'PAID', method:state.paymentMethod,
+  };
+  state.qrPayload = JSON.stringify(payload);
+  state.rideStatus = 0;
+  go('confirmation');
+  setTimeout(renderQR, 50);
+}
+
+function screenConfirmation(){
+  const m = state.selectedMovie;
+  const ticketTotal = state.selectedSeats.length * m.price;
+  const rideTotal = state.selectedRide ? state.selectedRide.price : 0;
+  return `
+  <div class="eyebrow">Step 5 of 6</div>
+  <h1 class="page-title">You're all set 🎉</h1>
+  <p class="page-sub">One QR code — for the cinema gate and your driver.</p>
+  <div class="ticket">
+    <div class="ticket-head">
+      <div><div style="font-weight:800;font-size:15px;">${m.title}</div><div style="font-size:12px;color:var(--text-dim);">${state.date} · ${state.showtime}</div></div>
+      <div class="pill" style="background:var(--good);color:#06210f;">PAID</div>
+    </div>
+    <div class="ticket-body">
+      <div class="qr-wrap">
+        <div id="qrcode"></div>
+        <div class="booking-id">Booking ID <b class="mono">${state.bookingId}</b></div>
+      </div>
+      <div class="divider-dash"></div>
+      <div class="summary-line"><span>Seats</span><b>${state.selectedSeats.map(seatLabel).join(', ')}</b></div>
+      <div class="summary-line"><span>Movie ticket</span><b>₹${ticketTotal}</b></div>
+      ${state.selectedRide?`<div class="summary-line"><span>${state.selectedRide.label} (${state.selectedRide.driver})</span><b>₹${rideTotal}</b></div>`:''}
+      <div class="summary-total"><span>Total paid</span><span>₹${ticketTotal+rideTotal}</span></div>
+
+      <div class="action-grid">
+        <button class="btn btn-ghost" onclick="downloadPdf()">⬇ Download ticket (PDF)</button>
+        <button class="btn btn-ghost" onclick="downloadQr()">⬇ Download QR</button>
+        <button class="btn btn-ghost" onclick="shareTicket()">↗ Share ticket</button>
+        <button class="btn btn-ghost" onclick="emailTicket()">✉ Email confirmation</button>
+      </div>
+      <button class="btn btn-primary btn-block" style="margin-top:14px;" onclick="go('${state.selectedRide? 'tracking':'cinema'}')">
+        ${state.selectedRide? 'Track my ride →' : 'View cinema location →'}
+      </button>
+    </div>
+  </div>`;
+}
+function renderQR(){
+  const el = document.getElementById('qrcode');
+  if(!el || !window.QRCode) return;
+  el.innerHTML='';
+  new QRCode(el, {text: state.qrPayload, width:168, height:168, colorDark:"#0B0B14", colorLight:"#ffffff"});
+}
+function downloadQr(){
+  const canvas = document.querySelector('#qrcode canvas');
+  if(!canvas){ showToast('QR still generating — try again in a second.'); return; }
+  const a = document.createElement('a');
+  a.href = canvas.toDataURL('image/png');
+  a.download = state.bookingId + '-qr.png';
+  a.click();
+}
+function downloadPdf(){
+  try{
+    const {jsPDF} = window.jspdf;
+    const doc = new jsPDF();
+    const m = state.selectedMovie;
+    doc.setFontSize(18); doc.text('Marquee & Wheels — Booking Ticket', 14, 18);
+    doc.setFontSize(11);
+    let y=32;
+    const line=(t)=>{ doc.text(t,14,y); y+=8; };
+    line('Booking ID: ' + state.bookingId);
+    line('Name: ' + state.user.name);
+    line('Movie: ' + m.title + '  (' + state.date + ', ' + state.showtime + ')');
+    line('Seats: ' + state.selectedSeats.map(seatLabel).join(', '));
+    if(state.selectedRide) line('Ride: ' + state.selectedRide.label + ' with ' + state.selectedRide.driver + ' — ₹' + state.selectedRide.price);
+    line('Payment: ' + state.paymentMethod + ' — PAID');
+    const canvas = document.querySelector('#qrcode canvas');
+    if(canvas){ doc.addImage(canvas.toDataURL('image/png'), 'PNG', 14, y+4, 45, 45); }
+    doc.save(state.bookingId + '-ticket.pdf');
+  }catch(e){ showToast('Could not generate PDF in this preview.'); }
+}
+function shareTicket(){
+  const text = `My booking ${state.bookingId} for ${state.selectedMovie.title} on ${state.date} ${state.showtime} is confirmed.`;
+  if(navigator.share){ navigator.share({title:'My movie ticket', text}); }
+  else { showToast('Ticket details copied — paste anywhere to share.'); }
+}
+function emailTicket(){ showToast('Confirmation sent to ' + state.user.email); }
+
+function screenCinema(){
+  return `
+  <div class="eyebrow">Cinema location</div>
+  <h1 class="page-title">${CINEMA.name}</h1>
+  <div class="card">
+    <div class="map-box"><div class="map-pin">📍</div></div>
+    <p class="page-sub" style="margin-bottom:16px;">${CINEMA.address}</p>
+    <a class="btn btn-ghost btn-block" style="display:block;text-align:center;" target="_blank"
+       href="https://www.google.com/maps/search/?api=1&query=${CINEMA.lat},${CINEMA.lng}">Open navigation in Google Maps ↗</a>
+    <button class="btn btn-primary btn-block" style="margin-top:12px;" onclick="go('feedback')">Movie's over — leave feedback →</button>
+  </div>`;
+}
+
+function screenTracking(){
+  const stages = ['Driver assigned','On the way','Arrived','Trip complete'];
+  const r = state.selectedRide;
+  return `
+  <div class="eyebrow">Step 5 of 6</div>
+  <h1 class="page-title">Your ride</h1>
+  <div class="card">
+    <div class="driver-row">
+      <div class="driver-avatar">${r.driver.split(' ').map(w=>w[0]).join('')}</div>
+      <div>
+        <div style="font-weight:700;font-size:16px;">${r.driver}</div>
+        <div style="font-size:12.5px;color:var(--text-dim);">${r.label} · ★ ${r.rating} · Vehicle no. GJ01-${1000+parseInt(state.bookingId.replace(/\D/g,'').slice(-4))}</div>
+      </div>
+    </div>
+    <div class="status-track">
+      ${stages.map((s,i)=>`<div class="st-item ${i<=state.rideStatus?'on':''}"><div class="st-dot"></div><div class="st-label">${s}</div></div>`).join('')}
+    </div>
+    <p class="page-sub" style="text-align:center;margin:16px 0 6px;">
+      ${state.rideStatus<3 ? `ETA: <b style="color:var(--text);">${Math.max(1, r.eta - state.rideStatus*3)} min</b>` : 'Trip complete — hope you enjoy the film!'}
+    </p>
+    ${state.rideStatus<3
+      ? `<button class="btn btn-ride btn-block" onclick="advanceRide()">Simulate: advance ride status</button>`
+      : `<button class="btn btn-primary btn-block" onclick="go('cinema')">Continue to cinema info →</button>`}
+  </div>`;
+}
+function advanceRide(){ state.rideStatus = Math.min(3, state.rideStatus+1); render(); }
+
+function screenFeedback(){
+  if(!state.movieFeedback.submitted){
+    return feedbackForm('movie');
+  }
+  if(state.selectedRide && !state.rideFeedback.submitted){
+    return feedbackForm('ride');
+  }
+  return `
+  <div class="eyebrow">Step 6 of 6</div>
+  <h1 class="page-title">Thanks, ${state.user.name.split(' ')[0]} 🙌</h1>
+  <p class="page-sub">Your feedback has been recorded. See you at the next show.</p>
+  <div class="card" style="text-align:center;">
+    <p style="margin-bottom:16px;">Booking <b class="mono" style="color:var(--marquee);">${state.bookingId}</b> is complete end-to-end.</p>
+    <button class="btn btn-primary" onclick="restart()">Book another movie</button>
+  </div>`;
+}
+function feedbackForm(kind){
+  const isMovie = kind==='movie';
+  const fb = isMovie ? state.movieFeedback : state.rideFeedback;
+  return `
+  <div class="eyebrow">Step 6 of 6</div>
+  <h1 class="page-title">${isMovie? 'Movie experience':'Ride experience'}</h1>
+  <p class="page-sub">${isMovie? 'How was '+state.selectedMovie.title+'?' : 'How was your ride with '+state.selectedRide.driver+'?'}</p>
+  <div class="card stack">
+    <div>
+      <label style="font-size:12.5px;color:var(--text-dim);">Overall rating</label>
+      <div class="stars">${[1,2,3,4,5].map(n=>`<span class="${fb.stars>=n?'on':''}" onclick="setStar('${kind}',${n})">★</span>`).join('')}</div>
+    </div>
+    ${isMovie ? `
+      <div class="field"><label>Review</label><textarea id="fbReview" placeholder="What did you think of the film?">${fb.review||''}</textarea></div>
+    ` : `
+      <div class="row">
+        <div style="flex:1;"><label style="font-size:12.5px;color:var(--text-dim);">Driver behaviour</label><div class="stars">${[1,2,3,4,5].map(n=>`<span class="${fb.behaviour>=n?'on':''}" onclick="setSub('behaviour',${n})">★</span>`).join('')}</div></div>
+        <div style="flex:1;"><label style="font-size:12.5px;color:var(--text-dim);">Vehicle cleanliness</label><div class="stars">${[1,2,3,4,5].map(n=>`<span class="${fb.cleanliness>=n?'on':''}" onclick="setSub('cleanliness',${n})">★</span>`).join('')}</div></div>
+      </div>
+      <div><label style="font-size:12.5px;color:var(--text-dim);">Ride comfort</label><div class="stars">${[1,2,3,4,5].map(n=>`<span class="${fb.comfort>=n?'on':''}" onclick="setSub('comfort',${n})">★</span>`).join('')}</div></div>
+    `}
+    <div class="field"><label>Suggestions (optional)</label><textarea id="fbSuggest" placeholder="Anything we could improve?">${fb.suggestions||''}</textarea></div>
+    <button class="btn btn-primary btn-block" onclick="submitFeedback('${kind}')">Submit ${isMovie?'movie':'ride'} feedback</button>
+  </div>`;
+}
+function setStar(kind,n){ (kind==='movie'?state.movieFeedback:state.rideFeedback).stars = n; render(); }
+function setSub(field,n){ state.rideFeedback[field]=n; render(); }
+function submitFeedback(kind){
+  if(kind==='movie'){
+    state.movieFeedback.review = document.getElementById('fbReview').value;
+    state.movieFeedback.suggestions = document.getElementById('fbSuggest').value;
+    state.movieFeedback.submitted = true;
+  } else {
+    state.rideFeedback.suggestions = document.getElementById('fbSuggest').value;
+    state.rideFeedback.submitted = true;
+  }
+  showToast('Feedback saved — thank you!');
+  render();
+}
+function restart(){
+  state = {...state, screen:'movies', selectedMovie:null, selectedSeats:[], bookedSeats:new Set(),
+    needRide:null, ownVehicle:null, passengers:2, rideOptions:[], selectedRide:null,
+    bookingId:null, qrPayload:null, rideStatus:0,
+    movieFeedback:{stars:0,review:'',suggestions:''}, rideFeedback:{stars:0,behaviour:0,cleanliness:0,comfort:0,suggestions:''}};
+  go('movies');
+}
+
+/* ============ ADMIN ============ */
+const ADMIN_BOOKINGS = [
+  {id:'MW-8K2Q-77123', user:'Rohan Mehta', movie:'The Long Orbit', seats:3, ride:'SUV Cab', amount:1180, status:'Paid'},
+  {id:'MW-3F9L-77098', user:'Sana Iqbal', movie:'Paper Moons', seats:2, ride:'—', amount:480, status:'Paid'},
+  {id:'MW-QW1Z-77081', user:'Karthik Rao', movie:'Ghungroo', seats:4, ride:'Sedan Cab', amount:1178, status:'Paid'},
+  {id:'MW-7N4X-77065', user:'Diya Kapoor', movie:'Nightfall Protocol', seats:1, ride:'Bike Ride', amount:333, status:'Refunded'},
+  {id:'MW-1V8B-77042', user:'Arjun Nair', movie:'Chai, Interrupted', seats:2, ride:'Auto Rickshaw', amount:521, status:'Paid'},
+];
+function screenAdmin(){
+  const tabs = ['dashboard','movies','bookings','rides','users','feedback'];
+  return `
+  <div class="eyebrow">Admin panel</div>
+  <h1 class="page-title">Control Room</h1>
+  <div class="admin-tabs">
+    ${tabs.map(t=>`<button class="${state.adminTab===t?'active':''}" onclick="setAdminTab('${t}')">${t[0].toUpperCase()+t.slice(1)}</button>`).join('')}
+  </div>
+  ${adminTabContent()}`;
+}
+function setAdminTab(t){ state.adminTab=t; render(); }
+function adminTabContent(){
+  if(state.adminTab==='dashboard'){
+    return `
+    <div class="stat-grid">
+      <div class="stat-card"><div class="sv">248</div><div class="sl">Bookings today</div></div>
+      <div class="stat-card"><div class="sv">₹1.9L</div><div class="sl">Revenue today</div></div>
+      <div class="stat-card"><div class="sv">61%</div><div class="sl">Rides attached</div></div>
+      <div class="stat-card"><div class="sv">4.6★</div><div class="sl">Avg. rating</div></div>
+    </div>
+    <div class="card">
+      <h3 style="font-size:16px;margin-bottom:14px;">Bookings by movie (this week)</h3>
+      <div class="bar-chart">
+        ${MOVIES.map(m=>`<div class="bar" style="height:${20+Math.round(Math.random()*100)}px;"><span>${m.glyph}</span></div>`).join('')}
+      </div>
+    </div>`;
+  }
+  if(state.adminTab==='movies'){
+    return `<div class="card"><table><tr><th>Title</th><th>Genre</th><th>Duration</th><th>Price</th><th>Rating</th></tr>
+      ${MOVIES.map(m=>`<tr><td>${m.title}</td><td>${m.genre.join(', ')}</td><td>${m.duration}m</td><td>₹${m.price}</td><td>★ ${m.rating}</td></tr>`).join('')}
+      </table><p class="page-sub" style="margin-top:14px;margin-bottom:0;">Full CRUD (add / edit / archive) hooks into <span class="mono">POST /api/admin/movies</span> in the production backend.</p></div>`;
+  }
+  if(state.adminTab==='bookings'){
+    return `<div class="card"><table><tr><th>Booking ID</th><th>User</th><th>Movie</th><th>Seats</th><th>Ride</th><th>Amount</th><th>Status</th></tr>
+      ${ADMIN_BOOKINGS.map(b=>`<tr><td class="mono">${b.id}</td><td>${b.user}</td><td>${b.movie}</td><td>${b.seats}</td><td>${b.ride}</td><td>₹${b.amount}</td><td>${b.status}</td></tr>`).join('')}
+      </table></div>`;
+  }
+  if(state.adminTab==='rides'){
+    return `<div class="card"><table><tr><th>Ride type</th><th>Base fare</th><th>Per km</th></tr>
+      ${Object.values(RIDE_TYPES).map(r=>`<tr><td>${r.icon} ${r.label}</td><td>₹${r.base}</td><td>₹${r.perKm}/km</td></tr>`).join('')}
+      </table></div>`;
+  }
+  if(state.adminTab==='users'){
+    return `<div class="card"><table><tr><th>Name</th><th>Email</th><th>Bookings</th></tr>
+      <tr><td>Rohan Mehta</td><td>rohan.m@example.com</td><td>12</td></tr>
+      <tr><td>Sana Iqbal</td><td>sana.iqbal@example.com</td><td>7</td></tr>
+      <tr><td>Karthik Rao</td><td>karthik.rao@example.com</td><td>19</td></tr>
+      ${state.user?`<tr><td>${state.user.name}</td><td>${state.user.email}</td><td>1</td></tr>`:''}
+      </table></div>`;
+  }
+  if(state.adminTab==='feedback'){
+    return `<div class="card">
+      <h3 style="font-size:16px;margin-bottom:14px;">Feedback analytics</h3>
+      <div class="summary-line"><span>Avg. movie rating</span><b>4.5★ (1,204 reviews)</b></div>
+      <div class="summary-line"><span>Avg. driver behaviour</span><b>4.7★</b></div>
+      <div class="summary-line"><span>Avg. vehicle cleanliness</span><b>4.4★</b></div>
+      <div class="summary-line"><span>Avg. ride comfort</span><b>4.6★</b></div>
+      ${state.movieFeedback.submitted? `<div class="divider-dash"></div><p style="font-size:13px;">Latest: "${state.movieFeedback.review||'(no comment)'}" — ${state.movieFeedback.stars}★ from ${state.user?state.user.name:'a user'}</p>`:''}
+    </div>`;
+  }
+  return '';
+}
+
+/* ============ RENDER ============ */
+function render(){
+  const app = document.getElementById('app');
+  let html = '';
+  if(state.adminMode){ html = screenAdmin(); }
+  else {
+    html += filmstrip();
+    switch(state.screen){
+      case 'login': html += screenLogin(); break;
+      case 'movies': html += screenMovies(); break;
+      case 'seats': html += screenSeats(); break;
+      case 'transport': html += screenTransport(); break;
+      case 'payment': html += screenPayment(); break;
+      case 'confirmation': html += screenConfirmation(); break;
+      case 'cinema': html += screenCinema(); break;
+      case 'tracking': html += screenTracking(); break;
+      case 'feedback': html += screenFeedback(); break;
+      default: html += screenLogin();
+    }
+  }
+  app.innerHTML = html;
+  if(state.screen==='confirmation' && !state.adminMode) renderQR();
+  const old = document.querySelector('.toast'); if(old) old.remove();
+  if(state.toast){ const t=document.createElement('div'); t.className='toast'; t.textContent=state.toast; document.body.appendChild(t); }
+}
+render();
+</script>
+</body>
+</html>
